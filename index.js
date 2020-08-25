@@ -1,5 +1,7 @@
+require("dotenv").config();
 const express = require("express");
 const morgan = require("morgan");
+const Person = require("./models/Person");
 const cors = require("cors");
 const app = express();
 app.use(express.json());
@@ -14,86 +16,94 @@ app.use(
     )
 );
 const PORT = process.env.PORT || 3001;
-let persons = [
-    {
-        name: "Arto Hellas",
-        number: "6737345665",
-        id: 1,
-    },
-    {
-        name: "Ada Lovelace",
-        number: "39-44-5323523",
-        id: 2,
-    },
-    {
-        name: "Dan Abramov",
-        number: "23472347923",
-        id: 3,
-    },
-    {
-        name: "Mary Poppendieck",
-        number: "39-23-6423122",
-        id: 4,
-    },
-];
 
 const randomId = () => Math.floor(Math.random() * 999);
-const isUnique = (personObject, persons) =>
-    persons.some((person) => personObject.name === person.name);
-const isLegal = (personObject) =>
-    personObject.name.length === 0 || personObject.number.length === 0;
+const errorHandler = (error, req, res, next) => {
+    if (error.name === "CastError") {
+        return res.status(400).send({ error: "Malformatted id" });
+    } else if (error.name === "ValidationError") {
+        return res.status(400).send({ error: error.message });
+    }
+    next(error);
+};
 
 app.get("/api/persons", (req, res) => {
-    res.json(persons);
+    Person.find({}).then((people) => {
+        res.json(people);
+    });
 });
 
 app.get("/info", (req, res) => {
     const now = new Date();
-    res.send(
-        `<p>Phonebook has info for ${
-            persons.length
-        } people</p><p>${now.toString()}</p>`
-    );
+    Person.find({})
+        .then((people) => {
+            const personslength = JSON.parse(JSON.stringify(people)).length;
+            console.log(personslength);
+            res.send(
+                `<p>Phonebook has info for ${personslength} people</p><p>${now.toString()}</p>`
+            );
+        })
+        .catch((err) => next(err));
 });
 
 app.get("/api/persons/:id", (req, res) => {
     const id = Number(req.params.id);
-    const person = persons.find((person) => person.id === id);
-    if (person) {
-        res.json(person);
-    } else {
-        res.status(404).end();
-    }
+    Person.findOne({ id: id })
+        .then((person) => {
+            if (person) {
+                console.log(person);
+                res.json(person);
+            } else {
+                res.status(404).end();
+            }
+        })
+        .catch((err) => next(err));
+});
+app.put("/api/persons/:id", (req, res) => {
+    const id = Number(req.params.id);
+    const person = {
+        name: req.body.name,
+        number: req.body.number,
+        id: randomId(),
+    };
+    Person.findOneAndUpdate({ id: id }, person)
+        .then((person) => {
+            if (person) {
+                console.log(person);
+                res.json(person);
+            } else {
+                res.status(404).end();
+            }
+        })
+        .catch((err) => next(err));
 });
 
 app.delete("/api/persons/:id", (req, res) => {
     const id = Number(req.params.id);
-    persons = persons.filter((person) => person.id !== id);
-    res.status(204).end();
+    Person.findOneAndRemove({ id: id })
+        .then((person) => {
+            res.status(204).end();
+        })
+        .catch((err) => next(err));
 });
 
 app.post("/api/persons", (req, res) => {
-    const person = req.body;
-    console.log(person);
-    switch (true) {
-        case isLegal(person):
-            res.status(400)
-                .send({ error: "Person must have name and number ." })
-                .end();
-            break;
-        case isUnique(person, persons):
-            res.status(400).send({ error: "Person must be unique." }).end();
-            break;
-
-        default:
-            person.id = randomId();
-            console.log(person);
-            persons = persons.concat(person);
-            console.log(persons);
-            res.status(201).send(person).end();
-            break;
-    }
+    const newPerson = req.body;
+    console.log(newPerson);
+    randomId();
+    console.log(newPerson);
+    const person = new Person({
+        name: newPerson.name,
+        number: newPerson.number,
+        id: randomId(),
+    });
+    person
+        .save()
+        .then((savedPerson) => res.status(201).json(person).end())
+        .catch((err) => next(err));
 });
+app.use(errorHandler);
+
 app.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
 });
