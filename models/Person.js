@@ -11,7 +11,7 @@ mongoose
         console.log("connected successfully");
     })
     .catch((err) =>
-        console("failed to connect to MongoDB Atlas:", err.message)
+        console.log("failed to connect to MongoDB Atlas:", err.message)
     );
 
 const personSchema = new mongoose.Schema({
